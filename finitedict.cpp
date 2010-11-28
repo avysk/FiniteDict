@@ -7,9 +7,7 @@
 
 FiniteDict::FiniteDict(QWidget *parent) : QDialog(parent)
 {
-
-  initStateMachine();
-
+ 
   word = new QLineEdit("foo");
   statusLabel = new QLabel("disconnected");
   connectButton = new QPushButton("Connect");
@@ -36,10 +34,12 @@ FiniteDict::FiniteDict(QWidget *parent) : QDialog(parent)
   QGridLayout *mainLayout = new QGridLayout;
   mainLayout->addWidget(word, 0, 0);
   mainLayout->addWidget(statusLabel, 0, 1);
-  mainLayout->addWidget(buttonBox, 0, 2);
+  mainLayout->addWidget(buttonBox, 1, 0);
   setLayout(mainLayout);
 
   setWindowTitle("FiniteDict");
+
+  initStateMachine();
 
   machine.start();
 }
@@ -88,8 +88,6 @@ void FiniteDict::processInput()
 
   QString answer = QString::fromUtf8(buf);
 
-#define CODE(X) else if (answer.startsWith(X))	\
-    machine.postEvent(new ServerEvent<X>(answer))
 
   if (textMode)
     if (answer == ".\n")
@@ -97,14 +95,19 @@ void FiniteDict::processInput()
     else {
       ;// send text message
     }
+
+#define CODE(X) else if (answer.startsWith(#X))	\
+    machine.postEvent(new ServerEvent(X, answer))
+
     CODE(150);
     CODE(151);
     CODE(220);
     CODE(221);
     CODE(250);
-    CODE(550);
-    CODE(551);
+//   CODE(550);
+//    CODE(551);
     CODE(552);
+
   else {
     ; // unknown response
   }
@@ -112,13 +115,16 @@ void FiniteDict::processInput()
 
 void FiniteDict::doDefine()
 {
+  dictSocket->write("DEFINE ! " + word->text().toUtf8() + "\n");
 }
 
 void FiniteDict::doSendQuit()
 {
+  const char *cmdQuit = "QUIT\n";
+  dictSocket->write(cmdQuit);
 }
 
-void FiniteDict::guiDisonnected()
+void FiniteDict::guiDisconnected()
 {
   connectButton->setEnabled(true);
   defineButton->setEnabled(false);
@@ -174,9 +180,28 @@ void FiniteDict::initStateMachine()
   readyState->addTransition(defineButton, SIGNAL(clicked()), waitingState);
   readyState->addTransition(sendQuitButton, SIGNAL(clicked()), quittingState);
 
+#define TR(name, code, from, to) \
+  CodeTransition *name = new CodeTransition(code, statusLabel); \
+  name->setTargetState(to);					\
+  from->addTransition(name)
 
+  TR(tr220, 220, startState, readyState);
+  
+  TR(tr221, 221, quittingState, startState);
 
-  groupState->setInitialState(startState);
+  TR(tr552, 552, waitingState, readyState);
+
+  TR(tr150, 150, waitingState, betweenDefinitionsState);
+
+  TR(tr250, 250, betweenDefinitionsState, readyState);
+
+  TR(tr151, 151, betweenDefinitionsState, inDefinitionState); 
+
+  DefaultTransition *tr_nip = new DefaultTransition(statusLabel);
+  tr_nip->setTargetState(startState);
+  groupState->setInitialState(readyState);
+  groupState->addTransition(tr_nip);
+
 
   machine.addState(groupState);
   machine.addState(startState);

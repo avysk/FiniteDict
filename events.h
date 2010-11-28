@@ -1,41 +1,67 @@
 #ifndef __EVENTS_H_
 #define __EVENTS_H_
 
-int code_to_num(int code)
+struct ServerEvent : public QEvent
 {
-  switch (code) {
-  case 150: return 1;
-  case 151: return 2;
-  case 220: return 3;
-  case 221: return 4;
-  case 250: return 5;
-  case 550: return 6;
-  case 551: return 7;
-  case 552: return 8;
-  default: return 9;
-  }
-}
-
-template<int i> struct ServerEvent : public QEvent
-{
-  ServerEvent(const QString &msg) :
-    QEvent(QEvent::Type(QEvent::User+code_to_num(i))),
-    message(msg) {}
+  ServerEvent(const int c, const QString &msg) :
+    QEvent(QEvent::Type(QEvent::User+1)),
+    code(c), message(msg) {}
   
+  int code;
   QString message;
 };
 
-template<int i> class myTransition : public QAbstractTransition
+class DefaultTransition : public QAbstractTransition
 {
 public:
-  myTransition() {}
+  DefaultTransition(QLabel *l) :
+    label(l) {}
+
+protected:
+  virtual bool eventTest(QEvent *e)
+  {
+    return (e->type() == QEvent::Type(QEvent::User+1));
+  }
+
+  virtual void onTransition(QEvent *e)
+  {
+    qDebug() << "on transition";
+    ServerEvent *se = static_cast<ServerEvent *>(e);
+    label->setText("Not implemented: " + se->message);
+    qDebug() << "after";
+  }
+
+private:
+  QLabel *label;
+};
+
+class CodeTransition : public QAbstractTransition
+{
+public:
+  CodeTransition(const int c, QLabel *l) :
+    code(c), label(l) {}
   
 protected:
-  virtual bool eventTest(QEvent *e) const
+  virtual bool eventTest(QEvent *e)
   {
-    return (e->type() == QEvent::Type(QEvent::User+code_to_num(i)));
+    if (e->type() != QEvent::Type(QEvent::User+1))
+      return false;
+    ServerEvent *se = static_cast<ServerEvent *>(e);
+    return (code == se->code);
   }
+
+  virtual void onTransition(QEvent *e)
+  {
+    ServerEvent *se = static_cast<ServerEvent *>(e);
+    label->setText(se->message.trimmed());
+  }
+
+private:
+  int code;
+  QLabel *label;
 };
+
+
     
 #endif
 

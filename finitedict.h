@@ -16,7 +16,8 @@ class FiniteDict : public QDialog
   
 public:
   FiniteDict(QWidget *parent = 0);
-				 
+  void setStatusLine(const QString&);
+
 private slots:
   void doConnect();
   void doDefine();
@@ -25,7 +26,7 @@ private slots:
   void enableQuit();
   void processInput();
   void resetClient();
-  void guiDisonnected();
+  void guiDisconnected();
   void guiQuitting();
   void guiReady();
   void guiWaiting();
@@ -50,6 +51,8 @@ private:
   QState *inDefinitionState;
   QState *quittingState;
   QState *groupState;
+
+
 
   bool textMode;
 
