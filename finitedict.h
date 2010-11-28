@@ -2,20 +2,20 @@
 #define __FINITEDICT_H_
 
 #include <QDialog>
+#include <QDialogButtonBox>
 #include <QLabel>
 #include <QLineEdit>
-#include <QDialogButtonBox>
+#include <QState>
+#include <QStateMachine>
 #include <QString>
 #include <QTcpSocket>
-#include <QStateMachine>
-#include <QState>
 #include <QTextEdit>
 
 class FiniteDict : public QDialog
 {
   Q_OBJECT
   
-public:
+  public:
 
   FiniteDict(QWidget *parent = 0);
 				 
@@ -37,6 +37,7 @@ private slots:
   
 private:
 
+  // GUI elements 
   QLineEdit *word;
   QPushButton *connectButton;
   QPushButton *defineButton;
@@ -46,10 +47,12 @@ private:
   QTextEdit *outputText;
   QDialogButtonBox *buttonBox;
   
+  // socket 
   QTcpSocket *dictSocket;
   
+  // State machine
   QStateMachine machine;
-  
+  // _ states
   QState *startState;
   QState *readyState;
   QState *waitingState;
