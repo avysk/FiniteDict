@@ -3,21 +3,11 @@
 
 struct ServerEvent : public QEvent
 {
-  ServerEvent(const int c, const QString& msg) :
+  ServerEvent(const QString& msg) :
     QEvent(QEvent::Type(QEvent::User+1)),
-    code(c), message(msg) {}
-  
-  int code;
+    message(msg) {}
+
   QString message;
-};
-
-struct TextEvent : public QEvent
-{
-  TextEvent(const QString& t) :
-    QEvent(QEvent::Type(QEvent::User+2)),
-    text(t) {}
-
-  QString text;
 };
 
 class DefaultTransition : public QAbstractTransition
@@ -29,16 +19,13 @@ public:
 protected:
   virtual bool eventTest(QEvent *e)
   {
-    return (e->type() == QEvent::Type(QEvent::User+1)) ||
-      (e->type() == QEvent::Type(QEvent::User+2));
+    return (e->type() == QEvent::Type(QEvent::User+1));
   }
 
   virtual void onTransition(QEvent *e)
   {
-    qDebug() << "on transition";
     ServerEvent *se = static_cast<ServerEvent *>(e);
     label->setText("Not implemented: " + se->message);
-    qDebug() << "after";
   }
 
 private:
@@ -48,7 +35,7 @@ private:
 class CodeTransition : public QAbstractTransition
 {
 public:
-  CodeTransition(const int c, QLabel *l) :
+  CodeTransition(const QString& c, QLabel *l) :
     code(c), label(l) {}
   
 protected:
@@ -57,7 +44,7 @@ protected:
     if (e->type() != QEvent::Type(QEvent::User+1))
       return false;
     ServerEvent *se = static_cast<ServerEvent *>(e);
-    return (code == se->code);
+    return (se->message.startsWith(code));
   }
 
   virtual void onTransition(QEvent *e)
@@ -67,7 +54,7 @@ protected:
   }
 
 private:
-  int code;
+  QString code;
   QLabel *label;
 };
 
@@ -80,17 +67,16 @@ public:
 protected:
   virtual bool eventTest(QEvent *e)
   {
-    if (e->type() != QEvent::Type(QEvent::User+2))
+    if (e->type() != QEvent::Type(QEvent::User+1))
       return false;
-    TextEvent *te = static_cast<TextEvent *>(e);
-    qDebug() << te->text << te->text.length();
-    return (te->text != ".\r\n");
+    ServerEvent *se = static_cast<ServerEvent *>(e);
+    return (se->message != ".\r\n");
   }
 
   virtual void onTransition(QEvent *e)
   {
-    TextEvent *te = static_cast<TextEvent *>(e);
-    textEdit->append(te->text.trimmed());
+    ServerEvent *se = static_cast<ServerEvent *>(e);
+    textEdit->append(se->message.remove('\r').remove('\n'));
   }
 
 private:
@@ -106,15 +92,15 @@ public:
 protected:
   virtual bool eventTest(QEvent *e)
   {
-    if (e->type() != QEvent::Type(QEvent::User+2))
+    if (e->type() != QEvent::Type(QEvent::User+1))
       return false;
-    TextEvent *te = static_cast<TextEvent *>(e);
-    return (te->text == ".\r\n");
+    ServerEvent *se = static_cast<ServerEvent *>(e);
+    return (se->message == ".\r\n");
   }
 
   virtual void onTransition(QEvent *)
   {
-    textEdit->append("\n--------------------\n");
+    textEdit->append("\n--------------------------------------------------------------------------------\n");
   }
 
 private:

@@ -16,22 +16,27 @@ class FiniteDict : public QDialog
   Q_OBJECT
   
 public:
+
   FiniteDict(QWidget *parent = 0);
 				 
 private slots:
+
+  // Buttons actions
   void doConnect();
   void doDefine();
   void doSendQuit();
+
+  // Socket
   void processInput();
-  void resetClient();
+  void resetSocket();
+
+  // GUI
   void guiDisconnected();
-  void guiQuitting();
   void guiReady();
   void guiWaiting();
-  void startTextMode();
-  void stopTextMode();
   
 private:
+
   QLineEdit *word;
   QPushButton *connectButton;
   QPushButton *defineButton;
@@ -52,8 +57,6 @@ private:
   QState *inDefinitionState;
   QState *quittingState;
   QState *groupState;
-
-  bool textMode;
 
   void initStateMachine();
 

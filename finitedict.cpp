@@ -1,5 +1,4 @@
 #include <QtGui>
-#include <QDebug>
 #include <QtNetwork>
 
 #include "finitedict.h"
@@ -7,13 +6,20 @@
 
 FiniteDict::FiniteDict(QWidget *parent) : QDialog(parent)
 {
+  // Create GUI
   word = new QLineEdit("foo");
   statusLabel = new QLabel("disconnected");
+  
   connectButton = new QPushButton("Connect");
   defineButton = new QPushButton("Define");
   sendQuitButton = new QPushButton("Send quit");
   quitButton = new QPushButton("Quit");
-  
+
+  connect(connectButton, SIGNAL(clicked()), this, SLOT(doConnect()));
+  connect(defineButton, SIGNAL(clicked()), this, SLOT(doDefine()));
+  connect(sendQuitButton, SIGNAL(clicked()), this, SLOT(doSendQuit()));
+  connect(quitButton, SIGNAL(clicked()), this, SLOT(close()));
+
   buttonBox = new QDialogButtonBox();
   
   buttonBox->addButton(connectButton, QDialogButtonBox::ActionRole);
@@ -23,16 +29,7 @@ FiniteDict::FiniteDict(QWidget *parent) : QDialog(parent)
 
   outputText = new QTextEdit();
   outputText->setLineWrapMode(QTextEdit::NoWrap);
-  outputText->setReadOnly(true);
-  
-  dictSocket = new QTcpSocket(this);
-  
-  connect(connectButton, SIGNAL(clicked()), this, SLOT(doConnect()));
-  connect(defineButton, SIGNAL(clicked()), this, SLOT(doDefine()));
-  connect(sendQuitButton, SIGNAL(clicked()), this, SLOT(doSendQuit()));
-  connect(quitButton, SIGNAL(clicked()), this, SLOT(close()));
-
-  connect(dictSocket, SIGNAL(readyRead()), this, SLOT(processInput()));
+  outputText->setReadOnly(true);  
   
   QGridLayout *mainLayout = new QGridLayout;
   mainLayout->addWidget(word, 0, 0);
@@ -43,49 +40,108 @@ FiniteDict::FiniteDict(QWidget *parent) : QDialog(parent)
   
   setWindowTitle("FiniteDict");
   
-  initStateMachine();
+  // Socket for connection with dict server
+  dictSocket = new QTcpSocket(this);
   
+  connect(dictSocket, SIGNAL(readyRead()), this, SLOT(processInput()));
+
+  // State machine
+  initStateMachine();
   machine.start();
 }
 
-void FiniteDict::resetClient()
+// *** STATE MACHINE ***
+
+void FiniteDict::initStateMachine()
 {
-  textMode = false;
-  dictSocket->abort();
+  // states
+  startState = new QState();
+
+  groupState = new QState();
+  
+  readyState = new QState(groupState);
+  waitingState = new QState(groupState);
+  betweenDefinitionsState = new QState(groupState);
+  inDefinitionState = new QState(groupState);
+  quittingState = new QState(groupState);
+
+  groupState->setInitialState(readyState);
+
+  // effects of states on GUI
+  QObject::connect(startState, SIGNAL(entered()),
+		   this, SLOT(resetSocket()));
+  QObject::connect(startState, SIGNAL(entered()),
+		   this, SLOT(guiDisconnected()));
+  QObject::connect(readyState, SIGNAL(entered()),
+		   this, SLOT(guiReady()));
+  QObject::connect(waitingState, SIGNAL(entered()),
+		   this, SLOT(guiWaiting()));
+  QObject::connect(quittingState, SIGNAL(entered()),
+		   this, SLOT(guiWaiting()));
+  // _ clear the text field before printing next definition
+  QObject::connect(waitingState, SIGNAL(entered()),
+		   outputText, SLOT(clear()));
+
+  // user-initiated transitions
+  readyState->addTransition(defineButton, SIGNAL(clicked()),
+			    waitingState);
+  readyState->addTransition(sendQuitButton, SIGNAL(clicked()),
+			    quittingState);
+
+  // server-initiated transitions
+
+  CodeTransition *tmp;
+
+// HELPFUL MACROS
+// Creates transition 'from' -> 'to' for the server message
+// with given 'code' in the beginning of the line
+#define TR(code, from, to)			\
+  tmp = new CodeTransition(code, statusLabel);	\
+  tmp->setTargetState(to);			\
+  from->addTransition(tmp)
+//
+// MACROS ENDS HERE
+//
+
+  // _ messages with number code 
+  TR("150", waitingState, betweenDefinitionsState);
+  TR("151", betweenDefinitionsState, inDefinitionState); 
+  TR("220", startState, readyState);
+  TR("221", quittingState, startState);
+  TR("250", betweenDefinitionsState, readyState);
+  TR("552", waitingState, readyState);
+  
+  // _ definition text transition
+  TextTransition *tr_text = new TextTransition(outputText);
+  tr_text->setTargetState(inDefinitionState);
+  inDefinitionState->addTransition(tr_text);
+
+  // _ end of definiton transition
+  DefinitionEndTransition *tr_end =
+    new DefinitionEndTransition(outputText);
+  tr_end->setTargetState(betweenDefinitionsState);
+  inDefinitionState->addTransition(tr_end);
+
+  // _ unknown messages
+  DefaultTransition *tr_nip = new DefaultTransition(statusLabel);
+  tr_nip->setTargetState(startState);
+  groupState->addTransition(tr_nip);
+
+  // Putting it all togehther
+  machine.addState(groupState);
+  machine.addState(startState);
+  machine.setInitialState(startState);
 }
+
+
+// *** SLOTS ***
+
+// buttons actions
 
 void FiniteDict::doConnect()
 {
-  textMode = false;
   statusLabel->setText("connecting...");
-  dictSocket->abort();
   dictSocket->connectToHost("dict.org", 2628);
-}
-
-void FiniteDict::processInput()
-{
-  char buf[1024];
-  
-  dictSocket->readLine(buf, sizeof(buf));
-  
-  QString answer = QString::fromUtf8(buf);
-  
-  if (textMode) {
-    machine.postEvent(new TextEvent(answer));
-  }
-  
-#define CODE(X) else if (answer.startsWith(#X))		\
-    machine.postEvent(new ServerEvent(X, answer))
-  
-  CODE(150);
-  CODE(151);
-  CODE(220);
-  CODE(221);
-  CODE(250);
-  CODE(552);
-  
-  else
-    machine.postEvent(new TextEvent("Unknown message: " + answer));
 }
 
 void FiniteDict::doDefine()
@@ -99,28 +155,43 @@ void FiniteDict::doSendQuit()
   dictSocket->write(cmdQuit);
 }
 
- void FiniteDict::guiDisconnected()
- {
+// socket
+
+void FiniteDict::processInput()
+{
+  char buf[1024]; // FOR SIMPLICITY, SHOULD NOT BE DONE LIKE THIS!
+
+  while (dictSocket->canReadLine()) {
+    dictSocket->readLine(buf, sizeof(buf));
+    QString answer = QString::fromUtf8(buf);
+    machine.postEvent(new ServerEvent(answer));
+  }
+}
+
+void FiniteDict::resetSocket()
+{
+  dictSocket->abort();
+}
+
+// GUI
+
+// _ disconnected
+void FiniteDict::guiDisconnected()
+{
   connectButton->setEnabled(true);
+  connectButton->setDefault(true);
   defineButton->setEnabled(false);
   sendQuitButton->setEnabled(false);
   quitButton->setEnabled(true);
   word->setEnabled(false);
 }
 
- void FiniteDict::guiQuitting()
- {
-  connectButton->setEnabled(false);
-  defineButton->setEnabled(false);
-  sendQuitButton->setEnabled(false);
-  quitButton->setEnabled(false);
-  word->setEnabled(false);
-}
-
- void FiniteDict::guiReady()
+// _ connected, ready to search
+void FiniteDict::guiReady()
  {
   connectButton->setEnabled(false);
   defineButton->setEnabled(true);
+  defineButton->setDefault(true);
   sendQuitButton->setEnabled(true);
   quitButton->setEnabled(false);
   word->setEnabled(true);
@@ -128,7 +199,8 @@ void FiniteDict::doSendQuit()
   word->selectAll();
 }
 
- void FiniteDict::guiWaiting()
+// _ blocked, waiting for server
+void FiniteDict::guiWaiting()
  {
   connectButton->setEnabled(false);
   defineButton->setEnabled(false);
@@ -137,74 +209,4 @@ void FiniteDict::doSendQuit()
   word->setEnabled(false);
 }
 
- void FiniteDict::initStateMachine()
- {
-  startState = new QState();
 
-  groupState = new QState();
-  readyState = new QState(groupState);
-  waitingState = new QState(groupState);
-  betweenDefinitionsState = new QState(groupState);
-  inDefinitionState = new QState(groupState);
-  quittingState = new QState(groupState);
-
-  QObject::connect(startState, SIGNAL(entered()), this, SLOT(resetClient()));
-  QObject::connect(startState, SIGNAL(entered()), this, SLOT(guiDisconnected()));
-  QObject::connect(readyState, SIGNAL(entered()), this, SLOT(guiReady()));
-  QObject::connect(waitingState, SIGNAL(entered()), this, SLOT(guiWaiting()));
-  QObject::connect(quittingState, SIGNAL(entered()), this, SLOT(guiQuitting()));
-
-  readyState->addTransition(defineButton, SIGNAL(clicked()), waitingState);
-  readyState->addTransition(sendQuitButton, SIGNAL(clicked()), quittingState);
-
-#define TR(name, code, from, to)				\
-  CodeTransition *name = new CodeTransition(code, statusLabel); \
-  name->setTargetState(to);					\
-  from->addTransition(name)
-
-  TR(tr220, 220, startState, readyState);
-  
-  TR(tr221, 221, quittingState, startState);
-
-  TR(tr552, 552, waitingState, readyState);
-
-  TR(tr150, 150, waitingState, betweenDefinitionsState);
-
-  TR(tr250, 250, betweenDefinitionsState, readyState);
-
-  TR(tr151, 151, betweenDefinitionsState, inDefinitionState); 
-
-  QObject::connect(inDefinitionState, SIGNAL(entered()),
-		   this, SLOT(startTextMode()));
-
-  QObject::connect(inDefinitionState, SIGNAL(exited()),
-		   this, SLOT(stopTextMode()));
-
-  TextTransition *tr_text = new TextTransition(outputText);
-  tr_text->setTargetState(inDefinitionState);
-  inDefinitionState->addTransition(tr_text);
-
-  DefinitionEndTransition *tr_end = new DefinitionEndTransition(outputText);
-  tr_end->setTargetState(betweenDefinitionsState);
-  inDefinitionState->addTransition(tr_end);
-
-  DefaultTransition *tr_nip = new DefaultTransition(statusLabel);
-  tr_nip->setTargetState(startState);
-  groupState->setInitialState(readyState);
-  groupState->addTransition(tr_nip);
-
-  machine.addState(groupState);
-  machine.addState(startState);
-  machine.setInitialState(startState);
-
-}
-
-void FiniteDict::startTextMode()
-{
-  textMode = true;
-}
-
-void FiniteDict::stopTextMode()
-{
-  textMode = false;
-}
