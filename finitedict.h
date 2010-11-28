@@ -9,6 +9,7 @@
 #include <QTcpSocket>
 #include <QStateMachine>
 #include <QState>
+#include <QTextEdit>
 
 class FiniteDict : public QDialog
 {
@@ -16,20 +17,19 @@ class FiniteDict : public QDialog
   
 public:
   FiniteDict(QWidget *parent = 0);
-  void setStatusLine(const QString&);
-
+				 
 private slots:
   void doConnect();
   void doDefine();
   void doSendQuit();
-  void disableQuit();
-  void enableQuit();
   void processInput();
   void resetClient();
   void guiDisconnected();
   void guiQuitting();
   void guiReady();
   void guiWaiting();
+  void startTextMode();
+  void stopTextMode();
   
 private:
   QLineEdit *word;
@@ -38,6 +38,7 @@ private:
   QPushButton *sendQuitButton;
   QPushButton *quitButton;
   QLabel *statusLabel;
+  QTextEdit *outputText;
   QDialogButtonBox *buttonBox;
   
   QTcpSocket *dictSocket;
@@ -51,8 +52,6 @@ private:
   QState *inDefinitionState;
   QState *quittingState;
   QState *groupState;
-
-
 
   bool textMode;
 
