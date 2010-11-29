@@ -13,60 +13,56 @@
 
 class FiniteDict : public QDialog
 {
-  Q_OBJECT
-  
-  public:
+        Q_OBJECT
 
-  FiniteDict(QWidget *parent = 0);
-				 
-private slots:
+        public:
 
-  // Buttons actions
-  void doConnect();
-  void doDefine();
-  void doSendQuit();
+                FiniteDict(QWidget *parent = 0);
 
-  // Socket
-  void processInput();
-  void resetSocket();
+        private slots:
 
-  // GUI
-  void guiDisconnected();
-  void guiReady();
-  void guiWaiting();
-  
-private:
+                // Buttons actions
+                void doConnect();
+                void doDefine();
+                void doSendQuit();
 
-  // GUI elements 
-  QLineEdit *word;
-  QPushButton *connectButton;
-  QPushButton *defineButton;
-  QPushButton *sendQuitButton;
-  QPushButton *quitButton;
-  QLabel *statusLabel;
-  QTextEdit *outputText;
-  QDialogButtonBox *buttonBox;
-  
-  // socket 
-  QTcpSocket *dictSocket;
-  
-  // State machine
-  QStateMachine machine;
-  // _ states
-  QState *startState;
-  QState *readyState;
-  QState *waitingState;
-  QState *betweenDefinitionsState;
-  QState *inDefinitionState;
-  QState *quittingState;
-  QState *groupState;
+                // Socket
+                void processInput();
+                void resetSocket();
 
-  void initStateMachine();
+                // GUI
+                void guiDisconnected();
+                void guiReady();
+                void guiWaiting();
+
+        private:
+
+                // GUI elements 
+                QLineEdit *word;
+                QPushButton *connectButton;
+                QPushButton *defineButton;
+                QPushButton *sendQuitButton;
+                QPushButton *quitButton;
+                QLabel *statusLabel;
+                QTextEdit *outputText;
+                QDialogButtonBox *buttonBox;
+
+                // socket 
+                QTcpSocket *dictSocket;
+
+                // State machine
+                QStateMachine machine;
+                // _ states
+                QState *startState;
+                QState *readyState;
+                QState *waitingState;
+                QState *betweenDefinitionsState;
+                QState *inDefinitionState;
+                QState *quittingState;
+                QState *groupState;
+
+                void initStateMachine();
 
 };
 
 #endif
-
-// Local Variables:
-// mode: c++
-// End:
