@@ -16,10 +16,21 @@ FiniteDict::FiniteDict(QWidget *parent) : QDialog(parent)
         sendQuitButton = new QPushButton("Send QUIT");
         quitButton = new QPushButton("Quit");
 
+        // _ mappings for buttons
+
+        cmdMapper = new QSignalMapper(this);
+        cmdMapper->setMapping(sendClientButton,
+                        QString("CLIENT FiniteDict 1.0\n"));
+        cmdMapper->setMapping(sendQuitButton,
+                        QString("QUIT\n"));
+
+        connect(cmdMapper, SIGNAL(mapped(QString)),
+                        this, SLOT(doSendCmd(QString)));
+
         connect(connectButton, SIGNAL(clicked()), this, SLOT(doConnect()));
-        connect(sendClientButton, SIGNAL(clicked()), this, SLOT(doSendCmd("CLIENT FiniteDict 0.1\n")));
+        connect(sendClientButton, SIGNAL(clicked()), cmdMapper, SLOT(map()));
         connect(defineButton, SIGNAL(clicked()), this, SLOT(doDefine()));
-        connect(sendQuitButton, SIGNAL(clicked()), this, SLOT(doSendCmd("QUIT\n")));
+        connect(sendQuitButton, SIGNAL(clicked()), cmdMapper, SLOT(map()));
         connect(quitButton, SIGNAL(clicked()), this, SLOT(close()));
 
         buttonBox = new QDialogButtonBox();
@@ -156,9 +167,9 @@ void FiniteDict::doDefine()
         dictSocket->write("DEFINE ! " + word->text().toUtf8() + "\n");
 }
 
-void FiniteDict::doSendCmd(const char *cmd)
+void FiniteDict::doSendCmd(QString cmd)
 {
-        dictSocket->write(cmd);
+        dictSocket->write(cmd.toUtf8());
 }
 
 // socket

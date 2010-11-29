@@ -5,6 +5,7 @@
 #include <QDialogButtonBox>
 #include <QLabel>
 #include <QLineEdit>
+#include <QSignalMapper>
 #include <QState>
 #include <QStateMachine>
 #include <QString>
@@ -24,7 +25,7 @@ class FiniteDict : public QDialog
                 // Buttons actions
                 void doConnect();
                 void doDefine();
-                void doSendCmd(const char*);
+                void doSendCmd(QString);
 
                 // Socket
                 void processInput();
@@ -38,7 +39,7 @@ class FiniteDict : public QDialog
 
         private:
 
-                // GUI elements 
+                // GUI elements
                 QLineEdit *word;
                 QPushButton *connectButton;
                 QPushButton *sendClientButton;
@@ -49,7 +50,7 @@ class FiniteDict : public QDialog
                 QTextEdit *outputText;
                 QDialogButtonBox *buttonBox;
 
-                // socket 
+                // socket
                 QTcpSocket *dictSocket;
 
                 // State machine
@@ -65,6 +66,8 @@ class FiniteDict : public QDialog
                 QState *groupState;
 
                 void initStateMachine();
+
+                QSignalMapper *cmdMapper;
 
 };
 
