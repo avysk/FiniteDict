@@ -11,18 +11,21 @@ FiniteDict::FiniteDict(QWidget *parent) : QDialog(parent)
         statusLabel = new QLabel("disconnected");
 
         connectButton = new QPushButton("Connect");
+        sendClientButton = new QPushButton("Send CLIENT");
         defineButton = new QPushButton("Define");
-        sendQuitButton = new QPushButton("Send quit");
+        sendQuitButton = new QPushButton("Send QUIT");
         quitButton = new QPushButton("Quit");
 
         connect(connectButton, SIGNAL(clicked()), this, SLOT(doConnect()));
+        connect(sendClientButton, SIGNAL(clicked()), this, SLOT(doSendCmd("CLIENT FiniteDict 0.1\n")));
         connect(defineButton, SIGNAL(clicked()), this, SLOT(doDefine()));
-        connect(sendQuitButton, SIGNAL(clicked()), this, SLOT(doSendQuit()));
+        connect(sendQuitButton, SIGNAL(clicked()), this, SLOT(doSendCmd("QUIT\n")));
         connect(quitButton, SIGNAL(clicked()), this, SLOT(close()));
 
         buttonBox = new QDialogButtonBox();
 
         buttonBox->addButton(connectButton, QDialogButtonBox::ActionRole);
+        buttonBox->addButton(sendClientButton, QDialogButtonBox::ActionRole);
         buttonBox->addButton(defineButton, QDialogButtonBox::ActionRole);
         buttonBox->addButton(sendQuitButton, QDialogButtonBox::ActionRole);
         buttonBox->addButton(quitButton, QDialogButtonBox::RejectRole);
@@ -56,22 +59,25 @@ void FiniteDict::initStateMachine()
 {
         // states
         startState = new QState();
+        QObject::connect(startState, SIGNAL(entered()),
+                        this, SLOT(resetSocket()));
 
         groupState = new QState();
 
+        connectedState = new QState(groupState);
         readyState = new QState(groupState);
         waitingState = new QState(groupState);
         betweenDefinitionsState = new QState(groupState);
         inDefinitionState = new QState(groupState);
         quittingState = new QState(groupState);
 
-        groupState->setInitialState(readyState);
+        groupState->setInitialState(connectedState);
 
         // effects of states on GUI
         QObject::connect(startState, SIGNAL(entered()),
-                        this, SLOT(resetSocket()));
-        QObject::connect(startState, SIGNAL(entered()),
                         this, SLOT(guiDisconnected()));
+        QObject::connect(connectedState, SIGNAL(entered()),
+                        this, SLOT(guiConnected()));
         QObject::connect(readyState, SIGNAL(entered()),
                         this, SLOT(guiReady()));
         QObject::connect(waitingState, SIGNAL(entered()),
@@ -106,8 +112,9 @@ void FiniteDict::initStateMachine()
         // _ messages with number code 
         TR("150", waitingState, betweenDefinitionsState);
         TR("151", betweenDefinitionsState, inDefinitionState); 
-        TR("220", startState, readyState);
+        TR("220", startState, connectedState);
         TR("221", quittingState, startState);
+        TR("250", connectedState, readyState);
         TR("250", betweenDefinitionsState, readyState);
         TR("552", waitingState, readyState);
 
@@ -149,10 +156,9 @@ void FiniteDict::doDefine()
         dictSocket->write("DEFINE ! " + word->text().toUtf8() + "\n");
 }
 
-void FiniteDict::doSendQuit()
+void FiniteDict::doSendCmd(const char *cmd)
 {
-        const char *cmdQuit = "QUIT\n";
-        dictSocket->write(cmdQuit);
+        dictSocket->write(cmd);
 }
 
 // socket
@@ -175,11 +181,23 @@ void FiniteDict::resetSocket()
 
 // GUI
 
+// _ connected, CLIENT not yet sent
+void FiniteDict::guiConnected()
+{
+        connectButton->setEnabled(false);
+        sendClientButton->setEnabled(true);
+        sendClientButton->setDefault(true);
+        defineButton->setEnabled(false);
+        sendQuitButton->setEnabled(false);
+        quitButton->setEnabled(false);
+}
+
 // _ disconnected
 void FiniteDict::guiDisconnected()
 {
         connectButton->setEnabled(true);
         connectButton->setDefault(true);
+        sendClientButton->setEnabled(false);
         defineButton->setEnabled(false);
         sendQuitButton->setEnabled(false);
         quitButton->setEnabled(true);
@@ -190,6 +208,7 @@ void FiniteDict::guiDisconnected()
 void FiniteDict::guiReady()
 {
         connectButton->setEnabled(false);
+        sendClientButton->setEnabled(false);
         defineButton->setEnabled(true);
         defineButton->setDefault(true);
         sendQuitButton->setEnabled(true);
@@ -203,6 +222,7 @@ void FiniteDict::guiReady()
 void FiniteDict::guiWaiting()
 {
         connectButton->setEnabled(false);
+        sendClientButton->setEnabled(false);
         defineButton->setEnabled(false);
         sendQuitButton->setEnabled(false);
         quitButton->setEnabled(false);

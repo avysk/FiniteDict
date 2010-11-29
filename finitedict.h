@@ -24,13 +24,14 @@ class FiniteDict : public QDialog
                 // Buttons actions
                 void doConnect();
                 void doDefine();
-                void doSendQuit();
+                void doSendCmd(const char*);
 
                 // Socket
                 void processInput();
                 void resetSocket();
 
                 // GUI
+                void guiConnected();
                 void guiDisconnected();
                 void guiReady();
                 void guiWaiting();
@@ -40,6 +41,7 @@ class FiniteDict : public QDialog
                 // GUI elements 
                 QLineEdit *word;
                 QPushButton *connectButton;
+                QPushButton *sendClientButton;
                 QPushButton *defineButton;
                 QPushButton *sendQuitButton;
                 QPushButton *quitButton;
@@ -54,6 +56,7 @@ class FiniteDict : public QDialog
                 QStateMachine machine;
                 // _ states
                 QState *startState;
+                QState *connectedState;
                 QState *readyState;
                 QState *waitingState;
                 QState *betweenDefinitionsState;
