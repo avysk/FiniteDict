@@ -24,14 +24,19 @@ FiniteDict::FiniteDict(QWidget *parent) : QDialog(parent)
         cmdMapper->setMapping(sendQuitButton,
                         QString("QUIT\n"));
 
-        connect(cmdMapper, SIGNAL(mapped(QString)),
+        QObject::connect(cmdMapper, SIGNAL(mapped(QString)),
                         this, SLOT(doSendCmd(QString)));
 
-        connect(connectButton, SIGNAL(clicked()), this, SLOT(doConnect()));
-        connect(sendClientButton, SIGNAL(clicked()), cmdMapper, SLOT(map()));
-        connect(defineButton, SIGNAL(clicked()), this, SLOT(doDefine()));
-        connect(sendQuitButton, SIGNAL(clicked()), cmdMapper, SLOT(map()));
-        connect(quitButton, SIGNAL(clicked()), this, SLOT(close()));
+        QObject::connect(connectButton, SIGNAL(clicked()),
+                        this, SLOT(doConnect()));
+        QObject::connect(sendClientButton, SIGNAL(clicked()),
+                        cmdMapper, SLOT(map()));
+        QObject::connect(defineButton, SIGNAL(clicked()),
+                        this, SLOT(doDefine()));
+        QObject::connect(sendQuitButton, SIGNAL(clicked()),
+                        cmdMapper, SLOT(map()));
+        QObject::connect(quitButton, SIGNAL(clicked()),
+                        this, SLOT(close()));
 
         buttonBox = new QDialogButtonBox();
 
@@ -43,7 +48,7 @@ FiniteDict::FiniteDict(QWidget *parent) : QDialog(parent)
 
         outputText = new QTextEdit();
         outputText->setLineWrapMode(QTextEdit::NoWrap);
-        outputText->setReadOnly(true);  
+        outputText->setReadOnly(true);
 
         QGridLayout *mainLayout = new QGridLayout;
         mainLayout->addWidget(word, 0, 0);
@@ -57,7 +62,8 @@ FiniteDict::FiniteDict(QWidget *parent) : QDialog(parent)
         // Socket for connection with dict server
         dictSocket = new QTcpSocket(this);
 
-        connect(dictSocket, SIGNAL(readyRead()), this, SLOT(processInput()));
+        QObject::connect(dictSocket, SIGNAL(readyRead()),
+                        this, SLOT(processInput()));
 
         // State machine
         initStateMachine();
@@ -120,9 +126,9 @@ void FiniteDict::initStateMachine()
         // MACROS ENDS HERE
         //
 
-        // _ messages with number code 
+        // _ messages with number code
         TR("150", waitingState, betweenDefinitionsState);
-        TR("151", betweenDefinitionsState, inDefinitionState); 
+        TR("151", betweenDefinitionsState, inDefinitionState);
         TR("220", startState, connectedState);
         TR("221", quittingState, startState);
         TR("250", connectedState, readyState);
